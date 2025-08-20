@@ -31,7 +31,7 @@ private:
     // bool is_tuner_enabled();
     // int patch_index();
     // char* patch_name();
-    void incPatch(int8_t aOffset, bool aGetIndexOnly);
+    void incPatch(int8_t aOffset, bool aGetIndexOnly = true);
     void toggleBypass();
     void toggleFullBypass();
     void toggleTuner();
