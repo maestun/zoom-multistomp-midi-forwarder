@@ -212,7 +212,7 @@ void ZoomMSDevice::requestPatchData() {
     patch_name[9] = _readBuffer[_patchLen - 3];
     patch_name[10] = '\0';
 
-    bypassed = _readBuffer[6] & 0x1;
+    // bypassed = _readBuffer[6] & 0x1;
     dprintln(patch_name);
     debug((uint8_t*) patch_name, 11, F("hex name"), false);
 }
@@ -242,23 +242,35 @@ void ZoomMSDevice::incPatch(int8_t aOffset, bool aGetIndexOnly) {
     }
 }
 
-void ZoomMSDevice::toggleFullBypass() {
-	bypassed = !bypassed;
-    BP_PAK[7] = bypassed ? 0x1 : 0x0;
-    for (int i = 0; i < DEV_MAX_FX_PER_PATCH; i++) {
-        BP_PAK[5] = i;
-        sendBytes(BP_PAK);
-    }
-    dprintln(bypassed ? F("Full Bypass ON") : F("Full Bypass OFF"));
-}
+// void ZoomMSDevice::toggleFullBypass() {
+//     static bool bypassed = true;
+//     bypassed = !bypassed;
+//     BP_PAK[7] = bypassed ? 0x1 : 0x0;
+//     for (int i = 0; i < DEV_MAX_FX_PER_PATCH; i++) {
+//         BP_PAK[5] = i;
+//         sendBytes(BP_PAK);
+//     }
+//     dprintln(bypassed ? F("Full Bypass ON") : F("Full Bypass OFF"));
+// }
 
-void ZoomMSDevice::toggleBypass() {
-	bypassed = !bypassed;
-    BP_PAK[5] = 0; // consider the 1st slot to be the line selector
-	BP_PAK[7] = bypassed ? 0x1 : 0x0;
-    sendBytes(BP_PAK, bypassed ? F("FX Bypass ON") : F("FX Bypass OFF"));
-    dprintln("");
-}
+
+// void ZoomMSDevice::enableFullBypass(bool aEnabled) {
+//     BP_PAK[7] = aEnabled ? 0x0 : 0x1;
+//     for (int i = 0; i < DEV_MAX_FX_PER_PATCH; i++) {
+//         BP_PAK[5] = i;
+//         sendBytes(BP_PAK);
+//     }
+//     // bypassed = aEnabled;
+//     dprintln(aEnabled ? F("Full Bypass ON") : F("Full Bypass OFF"));
+// }
+
+// void ZoomMSDevice::toggleBypass() {
+// 	bypassed = !bypassed;
+//     BP_PAK[5] = 0; // consider the 1st slot to be the line selector
+// 	BP_PAK[7] = bypassed ? 0x1 : 0x0;
+//     sendBytes(BP_PAK, bypassed ? F("FX Bypass ON") : F("FX Bypass OFF"));
+//     dprintln("");
+// }
 
 void ZoomMSDevice::toggleTuner() {
 	tuner_enabled = !tuner_enabled;

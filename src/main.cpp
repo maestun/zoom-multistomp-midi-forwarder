@@ -15,58 +15,88 @@
 #define MIDI_IS_STATUS_BYTE(c)  (c & 0x80)
 
 // debug / CC commands
-const char COMMAND_TOGGLE_BYPASS =  'B';
-const char COMMAND_GET_DATA =       'D';
-const char COMMAND_TOGGLE_FULL =    'F';
-const char COMMAND_GET_ID =         'I';
-const char COMMAND_NEXT_PATCH =     'N';
-const char COMMAND_PREV_PATCH =     'P';
-const char COMMAND_TOGGLE_TUNER =   'T';
-const char COMMAND_GET_INDEX =      'X';
-#define LOWERCASE(c)                ((c) + 32)
-#define IS_COMMAND(x, c)            ((x == c) || (x == LOWERCASE(c)))
+enum eSpecialPC {
+    // BYPASS_TOGGLE = 'a',
+    // BYPASS_ON = 'B',
+    // BYPASS_OFF = 'b',
 
-// USB and MIDI objects
+    // FULL_BYPASS_TOGGLE = 'e',
+    // FULL_BYPASS_ON = 'F',
+    // FULL_BYPASS_OFF = 'f',
+
+    TUNER_TOGGLE = 's',
+    TUNER_ON = 'T',
+    TUNER_OFF = 't',
+
+    GET_DATA = 'd',
+    GET_ID = 'i',
+    GET_INDEX = 'x',
+    NEXT_PATCH = 'n',
+    PREV_PATCH = 'p',
+};
+
 SoftwareSerial  _midi_serial(MIDI_RX_PIN, MIDI_TX_PIN);
 ZoomMSDevice *  _zoom = nullptr;
 
-void handle_special_pc(uint8_t pc) {
-        if (IS_COMMAND(pc, COMMAND_PREV_PATCH)) {
-            _zoom->incPatch(-1, true);
-        }
-        else if (IS_COMMAND(pc, COMMAND_NEXT_PATCH)) {
-            _zoom->incPatch(1, true);
-        }
-        else if (IS_COMMAND(pc, COMMAND_TOGGLE_TUNER)) {
-            _zoom->toggleTuner();
-        }
-        else if (IS_COMMAND(pc, COMMAND_TOGGLE_BYPASS)) {
-            _zoom->toggleBypass();
-        }
-        else if (IS_COMMAND(pc, COMMAND_TOGGLE_FULL)) {
-            _zoom->toggleFullBypass();
-        }
-        else if (IS_COMMAND(pc, COMMAND_GET_DATA)) {
-            _zoom->requestPatchData();
-        }
-        else if (IS_COMMAND(pc, COMMAND_GET_INDEX)) {
-            int8_t pi = _zoom->requestPatchIndex();
-            dprint(F("Current patch index: "));
-            dprintln(pi);
-        }
-        else if (IS_COMMAND(pc, COMMAND_GET_ID)) {
-            _zoom->requestDeviceID();
-            dprint(F("Device name: "));
-            dprintln(_zoom->device_name);
-            dprint(F("Firmware version: "));
-            dprintln(_zoom->fw_version);
-        }
+void handle_special_pc(eSpecialPC pc) {
+    if ((pc == PREV_PATCH)) {
+        _zoom->incPatch(-1, true);
+    }
+    else if ((pc == NEXT_PATCH)) {
+        _zoom->incPatch(1, true);
+    }
+    else if ((pc == TUNER_TOGGLE)) {
+        _zoom->toggleTuner();
+    }
+    else if ((pc == TUNER_ON)) {
+        _zoom->enableTuner(true);
+    }
+    else if ((pc == TUNER_OFF)) {
+        _zoom->enableTuner(false);
+    }
+    // else if ((pc == BYPASS_TOGGLE)) {
+    //     _zoom->toggleBypass();
+    // }
+    // else if ((pc == BYPASS_ON)) {
+    //     _zoom->enableBypass(true);
+    // }
+    // else if ((pc == BYPASS_OFF)) {
+    //     _zoom->enableBypass(false);
+    // }
+    // else if ((pc == FULL_BYPASS_TOGGLE)) {
+    //     _zoom->toggleFullBypass();
+    // }
+    // else if ((pc == FULL_BYPASS_ON)) {
+    //     _zoom->enableFullBypass(true);
+    // }
+    // else if ((pc == FULL_BYPASS_OFF)) {
+    //     _zoom->enableFullBypass(false);
+    // }
+    else if ((pc == GET_DATA)) {
+        _zoom->requestPatchData();
+    }
+    else if ((pc == GET_INDEX)) {
+        int8_t pi = _zoom->requestPatchIndex();
+        dprint(F("Current patch index: "));
+        dprintln(pi);
+    }
+    else if ((pc == GET_ID)) {
+        _zoom->requestDeviceID();
+        dprint(F("Device name: "));
+        dprintln(_zoom->device_name);
+        dprint(F("Firmware version: "));
+        dprintln(_zoom->fw_version);
+    }
+    else {
+        dprint(F("Unknown PC: "));
+        dprintln(pc);
+    }
 }
 
 void handle_serial_cli() {
 #ifdef SERIAL_DEBUG
     if (Serial.available()) {
-        handle_special_pc(Serial.read());
+        handle_special_pc(static_cast<eSpecialPC>(Serial.read()));
     }
 #endif
 }
@@ -74,7 +104,9 @@ void handle_serial_cli() {
 void handle_midi_input() {
     while (_midi_serial.available()) {
         byte b = _midi_serial.read();
-        if (MIDI_IS_STATUS_BYTE(b)) {
+        byte channel = (b & MIDI_CHANNEL_MASK) + 1;
+        if (MIDI_IS_STATUS_BYTE(b) && 
+            (channel == TARGET_MIDI_CHANNEL)) {
             // status byte, check...
             if ((b & MIDI_STATUS_MASK) == MIDI_PROGRAM_CHANGE) {
                 dprint(F("MIDI PC: "));
@@ -87,7 +119,7 @@ void handle_midi_input() {
                 }
                 else {
                     // special command
-                    handle_special_pc(b);
+                    handle_special_pc((eSpecialPC)b);
                 }
             }
         } 

@@ -12,7 +12,7 @@ private:
     
 public:
     bool                        tuner_enabled = false;
-    bool                        bypassed = false;
+    // bool                        bypassed = false;
     char                        patch_name[11] = {0};
     const __FlashStringHelper * device_name;
     char                        fw_version[5] = {0};
@@ -29,16 +29,12 @@ private:
     void requestDeviceID();
     void sendPatch(uint8_t patch_index);
     void enableEditorMode(bool aEnable);
-    // bool is_bypassed();
-    // bool is_tuner_enabled();
-    // int patch_index();
-    // char* patch_name();
     void incPatch(int8_t aOffset, bool aGetIndexOnly = true);
-    void toggleBypass();
-    void toggleFullBypass();
     void toggleTuner();
-
     void enableTuner(bool aEnable);
+    // void toggleBypass();
+    // void toggleFullBypass();
+
     // void enableBypass(bool aEnable);
     // void enableFullBypass(bool aEnable);
 
