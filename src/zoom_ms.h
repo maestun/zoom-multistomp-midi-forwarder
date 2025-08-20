@@ -1,5 +1,7 @@
 #pragma once
 
+#define ZOOM_MS_MAX_PATCHES             (50)
+
 class ZoomMSDevice {
 
 private:
@@ -35,4 +37,9 @@ private:
     void toggleBypass();
     void toggleFullBypass();
     void toggleTuner();
+
+    void enableTuner(bool aEnable);
+    // void enableBypass(bool aEnable);
+    // void enableFullBypass(bool aEnable);
+
 };

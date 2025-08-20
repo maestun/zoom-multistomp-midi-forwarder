@@ -6,7 +6,6 @@
 #include "debug.h"
 
 // Zoom device characteristics, don't change
-#define DEV_MAX_PATCHES             (50)
 #define DEV_ID_MS_50G 				(0x58)
 #define DEV_ID_MS_70CDR 			(0x61)
 #define DEV_ID_MS_60B 				(0x5f)
@@ -133,7 +132,7 @@ ZoomMSDevice::ZoomMSDevice() {
     // disable tuner
     sendBytes(TU_PAK);
     requestPatchIndex();
-    enableEditorMode(true);
+    // enableEditorMode(true);
     // requestPatchData(false);
     delay(500);
 }
@@ -220,19 +219,19 @@ void ZoomMSDevice::requestPatchData() {
 
 void ZoomMSDevice::sendPatch(uint8_t patch_index) {
     // send current patch number MIDI over USB
-    // dprint(F("Sending patch: "));
-    
-    PC_PAK[1] = patch_index;
-    // _usb.Task();
-    // _midi.SendData(PC_PAK);
-    sendBytes(PC_PAK, F("Sending patch: "));
-    dprintln(patch_index);
+    if (patch_index < ZOOM_MS_MAX_PATCHES) {
+        PC_PAK[1] = patch_index;
+        sendBytes(PC_PAK, F("Sending patch number: "));
+        dprintln(patch_index + 1);  
+    }
 }
 
 void ZoomMSDevice::incPatch(int8_t aOffset, bool aGetIndexOnly) {
+    
+    // clamp between 0 and max_patches - 1
     _current_patch_index += aOffset;
-    _current_patch_index = _current_patch_index > (DEV_MAX_PATCHES - 1) ? 0 : _current_patch_index;
-    _current_patch_index = _current_patch_index < 0 ? (DEV_MAX_PATCHES -1) : _current_patch_index;
+    _current_patch_index = _current_patch_index > (ZOOM_MS_MAX_PATCHES - 1) ? 0 : _current_patch_index;
+    _current_patch_index = _current_patch_index < 0 ? (ZOOM_MS_MAX_PATCHES -1) : _current_patch_index;
 
     sendPatch(_current_patch_index);
 
@@ -265,5 +264,13 @@ void ZoomMSDevice::toggleTuner() {
 	tuner_enabled = !tuner_enabled;
 	TU_PAK[2] = tuner_enabled ? 0x41 : 0x0;
     sendBytes(TU_PAK, tuner_enabled ? F("Tuner ON") : F("Tuner OFF"));
+    dprintln("");
+}
+
+
+void ZoomMSDevice::enableTuner(bool aEnable) {
+    TU_PAK[2] = aEnable ? 0x41 : 0x0;
+    sendBytes(TU_PAK, aEnable ? F("Tuner ON") : F("Tuner OFF"));
+	tuner_enabled = aEnable;
     dprintln("");
 }
