@@ -4,6 +4,7 @@
 #include <usbh_midi.h>
 #include "zoom_ms.h"
 #include "debug.h"
+#include "version.h"
 
 #define MIDI_RX_PIN             7          // SoftwareSerial RX pin for MIDI input
 #define MIDI_TX_PIN             5          // SoftwareSerial TX pin for MIDI thru
@@ -31,6 +32,8 @@ enum eSpecialPC {
     GET_DATA = 'd',
     GET_ID = 'i',
     GET_INDEX = 'x',
+    GET_VERSION = 'v',
+
     NEXT_PATCH = 'n',
     PREV_PATCH = 'p',
 };
@@ -39,53 +42,61 @@ SoftwareSerial  _midi_serial(MIDI_RX_PIN, MIDI_TX_PIN);
 ZoomMSDevice *  _zoom = nullptr;
 
 void handle_special_pc(eSpecialPC pc) {
-    if ((pc == PREV_PATCH)) {
+    if (pc == PREV_PATCH) {
         _zoom->incPatch(-1, true);
     }
-    else if ((pc == NEXT_PATCH)) {
+    else if (pc == NEXT_PATCH) {
         _zoom->incPatch(1, true);
     }
-    else if ((pc == TUNER_TOGGLE)) {
+    else if (pc == TUNER_TOGGLE) {
         _zoom->toggleTuner();
     }
-    else if ((pc == TUNER_ON)) {
+    else if (pc == TUNER_ON) {
         _zoom->enableTuner(true);
     }
-    else if ((pc == TUNER_OFF)) {
+    else if (pc == TUNER_OFF) {
         _zoom->enableTuner(false);
     }
-    // else if ((pc == BYPASS_TOGGLE)) {
+    // else if (pc == BYPASS_TOGGLE) {
     //     _zoom->toggleBypass();
     // }
-    // else if ((pc == BYPASS_ON)) {
+    // else if (pc == BYPASS_ON) {
     //     _zoom->enableBypass(true);
     // }
-    // else if ((pc == BYPASS_OFF)) {
+    // else if (pc == BYPASS_OFF) {
     //     _zoom->enableBypass(false);
     // }
-    // else if ((pc == FULL_BYPASS_TOGGLE)) {
+    // else if (pc == FULL_BYPASS_TOGGLE) {
     //     _zoom->toggleFullBypass();
     // }
-    // else if ((pc == FULL_BYPASS_ON)) {
+    // else if (pc == FULL_BYPASS_ON) {
     //     _zoom->enableFullBypass(true);
     // }
-    // else if ((pc == FULL_BYPASS_OFF)) {
+    // else if (pc == FULL_BYPASS_OFF) {
     //     _zoom->enableFullBypass(false);
     // }
-    else if ((pc == GET_DATA)) {
+    else if (pc == GET_DATA) {
         _zoom->requestPatchData();
     }
-    else if ((pc == GET_INDEX)) {
-        int8_t pi = _zoom->requestPatchIndex();
+    else if (pc == GET_INDEX) {
         dprint(F("Current patch index: "));
+        int8_t pi = _zoom->requestPatchIndex();
         dprintln(pi);
     }
-    else if ((pc == GET_ID)) {
+    else if (pc == GET_ID) {
         _zoom->requestDeviceID();
         dprint(F("Device name: "));
         dprintln(_zoom->device_name);
         dprint(F("Firmware version: "));
         dprintln(_zoom->fw_version);
+    }
+    else if (pc == GET_VERSION) {
+        dprint(F("Program version: "));
+        dprint(GIT_TAG);
+        dprint(F(" - "));
+        dprint(GIT_HASH);
+        dprint(F(" - "));
+        dprintln(GIT_BRANCH);
     }
     else {
         dprint(F("Unknown PC: "));

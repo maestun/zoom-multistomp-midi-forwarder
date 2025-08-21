@@ -1,0 +1,2 @@
+- [ ] add MIDI Thru
+- [ ] fix usb connection restored after loss
