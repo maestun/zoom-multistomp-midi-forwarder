@@ -7,7 +7,7 @@
 #include "version.h"
 
 #define MIDI_RX_PIN             7          // SoftwareSerial RX pin for MIDI input
-#define MIDI_TX_PIN             5          // SoftwareSerial TX pin for MIDI thru
+#define MIDI_TX_PIN             5          // SoftwareSerial TX pin for MIDI thru ??
 
 #define MIDI_BAUD_RATE          31250   // Standard MIDI baud rate
 #define MIDI_STATUS_MASK        0xF0
@@ -124,7 +124,7 @@ void handle_midi_input() {
                 // next byte is PC number
                 b = _midi_serial.read();
                 dprintln(b);
-                if (b < ZOOM_MS_MAX_PATCHES) {
+                if (b <= ZOOM_MS_MAX_PATCHES) {
                     // patch number
                     _zoom->sendPatch(--b);
                 }
