@@ -18,6 +18,8 @@
 #define DEV_NAME_INVALID			F("INVALID")
 #define DEV_MAX_FX_PER_PATCH        (5)
 
+#define USB_READ_TIMEOUT            (300)
+
 USB         _usb;
 USBH_MIDI   _midi(&_usb);
 
@@ -153,27 +155,32 @@ void ZoomMSDevice::readResponse() {
     uint16_t recv_read = 0;
     uint16_t recv_count = 0;
     uint8_t rcode = 0;
-
-    delay(300); // TODO: fine-tune this
-    // dprintln(F("readResponse"));
-            
-    _usb.Task();
+    
+    unsigned long timeout = millis() + USB_READ_TIMEOUT;
     do {
+        _usb.Task();
         rcode = _midi.RecvData(&recv_read, (uint8_t *)(_readBuffer + recv_count));
-        if(rcode == 0) {
+        if(rcode == 0 && recv_read > 0) {
             recv_count += recv_read;
         }
-    } while(/*recv_count < MIDI_MAX_SYSEX_SIZE &&*/ rcode == 0);
+        if (millis() > timeout) {
+            dprintln(F("readResponse timeout"));
+            break;
+        }
+        // exit if we received a complete sysex (ends with 0xF7)
+        if (recv_count > 0 && _readBuffer[recv_count - 1] == 0xF7) {
+            break;
+        }
+    } while(rcode == 0);
     
-    // remove MIDI packet's 1st byte
-    for(int i = 0, j = 0; i < /* MIDI_MAX_SYSEX_SIZE */0xf7; i++) {
-        // TODO: stop at 0xf7 when sysex
-        _readBuffer[j++] = _readBuffer[++i];
-        _readBuffer[j++] = _readBuffer[++i];
-        _readBuffer[j++] = _readBuffer[++i];
-    }  
-
-    // debugReadBuffer(F("SYSEX READ: "), true);
+    // remove MIDI packet's 1st byte - FIX: only process recv_count bytes
+    for(uint16_t i = 0, j = 0; i < recv_count && i < MIDI_MAX_SYSEX_SIZE - 3; i += 4) {
+        if (i + 3 < recv_count) {
+            _readBuffer[j++] = _readBuffer[i + 1];
+            _readBuffer[j++] = _readBuffer[i + 2];
+            _readBuffer[j++] = _readBuffer[i + 3];
+        }
+    }
 }
 
 void ZoomMSDevice::enableEditorMode(bool aEnable) {
@@ -285,4 +292,8 @@ void ZoomMSDevice::enableTuner(bool aEnable) {
     sendBytes(TU_PAK, aEnable ? F("Tuner ON") : F("Tuner OFF"));
 	tuner_enabled = aEnable;
     dprintln("");
+}
+
+void ZoomMSDevice::tick() {
+    _usb.Task();
 }

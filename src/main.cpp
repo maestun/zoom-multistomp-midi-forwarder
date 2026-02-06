@@ -14,16 +14,10 @@
 #define MIDI_CHANNEL_MASK       0x0F
 #define MIDI_PROGRAM_CHANGE     0xC0
 #define MIDI_IS_STATUS_BYTE(c)  (c & 0x80)
+#define MIDI_TIMEOUT_MS         20
 
 // debug / CC commands
 enum eSpecialPC {
-    // BYPASS_TOGGLE = 'a',
-    // BYPASS_ON = 'B',
-    // BYPASS_OFF = 'b',
-
-    // FULL_BYPASS_TOGGLE = 'e',
-    // FULL_BYPASS_ON = 'F',
-    // FULL_BYPASS_OFF = 'f',
 
     TUNER_TOGGLE = 's',
     TUNER_ON = 'T',
@@ -57,24 +51,6 @@ void handle_special_pc(eSpecialPC pc) {
     else if (pc == TUNER_OFF) {
         _zoom->enableTuner(false);
     }
-    // else if (pc == BYPASS_TOGGLE) {
-    //     _zoom->toggleBypass();
-    // }
-    // else if (pc == BYPASS_ON) {
-    //     _zoom->enableBypass(true);
-    // }
-    // else if (pc == BYPASS_OFF) {
-    //     _zoom->enableBypass(false);
-    // }
-    // else if (pc == FULL_BYPASS_TOGGLE) {
-    //     _zoom->toggleFullBypass();
-    // }
-    // else if (pc == FULL_BYPASS_ON) {
-    //     _zoom->enableFullBypass(true);
-    // }
-    // else if (pc == FULL_BYPASS_OFF) {
-    //     _zoom->enableFullBypass(false);
-    // }
     else if (pc == GET_DATA) {
         _zoom->requestPatchData();
     }
@@ -118,19 +94,26 @@ void handle_midi_input() {
         byte channel = (b & MIDI_CHANNEL_MASK) + 1;
         if (MIDI_IS_STATUS_BYTE(b) && 
             (channel == TARGET_MIDI_CHANNEL)) {
-            // status byte, check...
             if ((b & MIDI_STATUS_MASK) == MIDI_PROGRAM_CHANGE) {
                 dprint(F("MIDI PC: "));
-                // next byte is PC number
-                b = _midi_serial.read();
-                dprintln(b);
-                if (b <= ZOOM_MS_MAX_PATCHES) {
-                    // patch number
-                    _zoom->sendPatch(--b);
+                // wait for data byte with timeout (don't block forever)
+                unsigned long timeout = millis() + MIDI_TIMEOUT_MS;
+                while (!_midi_serial.available() && millis() < timeout) {
+                    _zoom->tick();  // keep USB alive while waiting
                 }
-                else {
-                    // special command
-                    handle_special_pc((eSpecialPC)b);
+                if (_midi_serial.available()) {
+                    b = _midi_serial.read();
+                    dprintln(b);
+                    if (b <= ZOOM_MS_MAX_PATCHES) {
+                        // patch number
+                        _zoom->sendPatch(--b);
+                    }
+                    else {
+                        // special command
+                        handle_special_pc((eSpecialPC)b);
+                    }
+                } else {
+                    dprintln(F("MIDI timeout - no data byte"));
                 }
             }
         } 
@@ -144,18 +127,7 @@ void setup() {
 }
 
 void loop() {
+    _zoom->tick();
     handle_midi_input();
     handle_serial_cli();
 }
-
-
-// void sendMidiThru(const MidiMessage& msg) {
-//     // Send complete message to MIDI thru port
-//     _midi_serial.write(msg.status);
-//     if (msg.length > 1) {
-//         _midi_serial.write(msg.data1);
-//     }
-//     if (msg.length > 2) {
-//         _midi_serial.write(msg.data2);
-//     }
-// }

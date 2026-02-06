@@ -22,8 +22,9 @@ private:
     void readResponse();
     void sendBytes(uint8_t * aBytes, const __FlashStringHelper * aMessage = NULL);
     
-    public:
+public:
     ZoomMSDevice();
+    void tick();
     int8_t requestPatchIndex();
     void requestPatchData();
     void requestDeviceID();
