@@ -7,7 +7,7 @@
 #include "version.h"
 
 #define MIDI_RX_PIN             7          // SoftwareSerial RX pin for MIDI input
-#define MIDI_TX_PIN             5          // SoftwareSerial TX pin for MIDI thru ??
+#define MIDI_TX_PIN             -1         // TODO: SoftwareSerial TX pin for MIDI thru ??
 
 #define MIDI_BAUD_RATE          31250   // Standard MIDI baud rate
 #define MIDI_STATUS_MASK        0xF0
@@ -33,38 +33,38 @@ enum eSpecialPC {
 };
 
 SoftwareSerial  _midi_serial(MIDI_RX_PIN, MIDI_TX_PIN);
-ZoomMSDevice *  _zoom = nullptr;
+ZoomMSDevice    _zoom;
 
 void handle_special_pc(eSpecialPC pc) {
     if (pc == PREV_PATCH) {
-        _zoom->incPatch(-1, true);
+        _zoom.incPatch(-1, true);
     }
     else if (pc == NEXT_PATCH) {
-        _zoom->incPatch(1, true);
+        _zoom.incPatch(1, true);
     }
     else if (pc == TUNER_TOGGLE) {
-        _zoom->toggleTuner();
+        _zoom.toggleTuner();
     }
     else if (pc == TUNER_ON) {
-        _zoom->enableTuner(true);
+        _zoom.enableTuner(true);
     }
     else if (pc == TUNER_OFF) {
-        _zoom->enableTuner(false);
+        _zoom.enableTuner(false);
     }
     else if (pc == GET_DATA) {
-        _zoom->requestPatchData();
+        _zoom.requestPatchData();
     }
     else if (pc == GET_INDEX) {
         dprint(F("Current patch index: "));
-        int8_t pi = _zoom->requestPatchIndex();
+        int8_t pi = _zoom.requestPatchIndex();
         dprintln(pi);
     }
     else if (pc == GET_ID) {
-        _zoom->requestDeviceID();
+        _zoom.requestDeviceID();
         dprint(F("Device name: "));
-        dprintln(_zoom->device_name);
+        dprintln(_zoom.getDeviceName());
         dprint(F("Firmware version: "));
-        dprintln(_zoom->fw_version);
+        dprintln(_zoom.getFirmwareVersion());
     }
     else if (pc == GET_VERSION) {
         dprint(F("Program version: "));
@@ -80,33 +80,24 @@ void handle_special_pc(eSpecialPC pc) {
     }
 }
 
-void handle_serial_cli() {
-#ifdef SERIAL_DEBUG
-    if (Serial.available()) {
-        handle_special_pc(static_cast<eSpecialPC>(Serial.read()));
-    }
-#endif
-}
 
 void handle_midi_input() {
     while (_midi_serial.available()) {
-        byte b = _midi_serial.read();
-        byte channel = (b & MIDI_CHANNEL_MASK) + 1;
+        uint8_t b = _midi_serial.read();
+        uint8_t channel = (b & MIDI_CHANNEL_MASK) + 1;
         if (MIDI_IS_STATUS_BYTE(b) && 
             (channel == TARGET_MIDI_CHANNEL)) {
             if ((b & MIDI_STATUS_MASK) == MIDI_PROGRAM_CHANGE) {
-                dprint(F("MIDI PC: "));
                 // wait for data byte with timeout (don't block forever)
                 unsigned long timeout = millis() + MIDI_TIMEOUT_MS;
                 while (!_midi_serial.available() && millis() < timeout) {
-                    _zoom->tick();  // keep USB alive while waiting
+                    _zoom.tick();  // keep USB alive while waiting
                 }
                 if (_midi_serial.available()) {
                     b = _midi_serial.read();
-                    dprintln(b);
-                    if (b <= ZOOM_MS_MAX_PATCHES) {
+                    if (b < ZOOM_MS_MAX_PATCHES) {
                         // patch number
-                        _zoom->sendPatch(--b);
+                        _zoom.sendPatch(b);
                     }
                     else {
                         // special command
@@ -120,14 +111,36 @@ void handle_midi_input() {
     }
 }
 
+
+void handle_serial_cli() {
+    if (Serial.available()) {
+        static int patch = 0;
+        int c = Serial.read();
+        if (c == '+') {
+            if (++patch == 50)
+            patch = 0;
+            _zoom.sendPatch(patch);
+        }
+        else if (c == '-') {
+            if (--patch == -1)
+            patch = 49;
+            _zoom.sendPatch(patch);
+        }
+        else {
+            handle_special_pc(static_cast<eSpecialPC>(c));
+        }        
+    }
+}
+
+
 void setup() {
     dprintinit(9600);
     _midi_serial.begin(MIDI_BAUD_RATE);
-    _zoom = new ZoomMSDevice();
+    _zoom.init();
 }
 
 void loop() {
-    _zoom->tick();
+    _zoom.tick();
     handle_midi_input();
     handle_serial_cli();
 }
