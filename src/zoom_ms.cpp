@@ -18,6 +18,8 @@
 #define DEV_NAME_INVALID			F("INVALID")
 #define DEV_MAX_FX_PER_PATCH        (5)
 
+#define USB_READ_TIMEOUT            (300)
+
 USB         _usb;
 USBH_MIDI   _midi(&_usb);
 
@@ -39,7 +41,7 @@ uint8_t 			BP_PAK[] = { 0xf0, 0x52, 0x00, 0xff /* device ID */, 0x31, 0x00 /* ef
 void debug(uint8_t * buffer, int len, const __FlashStringHelper * aMessage, bool aIsSysEx) {
     dprintln(aMessage);
     int i = 0;
-    for(i = 0; i < /*MIDI_MAX_SYSEX_SIZE*/len; i++) {
+    for (i = 0; i < /*MIDI_MAX_SYSEX_SIZE*/len; i++) {
         dprint("0x");
         if (buffer[i] < 16) 
             dprint("0");
@@ -56,10 +58,10 @@ void debug(uint8_t * buffer, int len, const __FlashStringHelper * aMessage, bool
     dprintln(i);
 }
 
-ZoomMSDevice::ZoomMSDevice() {
+
+void ZoomMSDevice::init() {
 
     _usb.Init();
-
     int state = 0; 
     uint32_t wait_ms = 0;
     int inc_ms = 100;
@@ -76,65 +78,19 @@ ZoomMSDevice::ZoomMSDevice() {
     dprint(F(" - Exit loop wait time ms: "));
     dprintln(wait_ms);
     
+    
     // identify
-    sendBytes(ID_PAK, F("REQ ID"));
-    readResponse();
-
-    _deviceID = _readBuffer[6];
-    if(_deviceID == DEV_ID_MS_50G || _deviceID == DEV_ID_MS_70CDR) {
-        _patchLen = 146;
-    }
-    else {
-        _patchLen = 105;
-    }
-    BP_PAK[3] = _deviceID;
-    EM_PAK[3] = _deviceID;
-    PI_PAK[3] = _deviceID;
-    PD_PAK[3] = _deviceID;
-
-    // char fw_version[5] = {0};
-    fw_version[0] = _readBuffer[10];
-    fw_version[1] = _readBuffer[11];
-    fw_version[2] = _readBuffer[12];
-    fw_version[3] = _readBuffer[13];
-
-    dprint(F("DEVICE ID: 0x"));
-    hprintln(_deviceID);
-
-    _patchLen = 0;
-    device_name = DEV_NAME_INVALID;
-    switch(_deviceID) {
-	case DEV_ID_MS_50G:
-		_patchLen = DEV_PLEN_MS_50G;
-		device_name = DEV_NAME_MS_50G;
-		break;
-	case DEV_ID_MS_70CDR:
-		_patchLen = DEV_PLEN_MS_70CDR;
-		device_name = DEV_NAME_MS_70CDR;
-		break;
-	case DEV_ID_MS_60B:
-		_patchLen = DEV_PLEN_MS_60B;
-		device_name = DEV_NAME_MS_60G;
-		break;
-	default:
-		break;
-    }
-
-    dprint(F("DEVICE NAME: "));
-    dprintln(device_name);
-
-    dprint(F("DEVICE FW: "));
-    dprintln(fw_version);
-
-    dprint(F("PATCH LEN: "));
-    dprintln(_patchLen);
+    _usb.Task();
+    requestDeviceID();
+    delay(1000);
+    _usb.Task();
+    requestDeviceID();
 
     // disable tuner
-    sendBytes(TU_PAK);
-    requestPatchIndex();
+    // sendBytes(TU_PAK);
+    // requestPatchIndex();
     // enableEditorMode(true);
     // requestPatchData(false);
-    delay(500);
 }
 
 /**
@@ -144,8 +100,9 @@ ZoomMSDevice::ZoomMSDevice() {
  * @param aMessage debug message to print
  */
 void ZoomMSDevice::sendBytes(uint8_t * aBytes, const __FlashStringHelper * aMessage) {
-    dprint(aMessage);
+    // dprint(aMessage);
     _usb.Task();
+    // debug(aBytes, 8, F("") , false);
     _midi.SendData(aBytes);
 }
 
@@ -153,27 +110,32 @@ void ZoomMSDevice::readResponse() {
     uint16_t recv_read = 0;
     uint16_t recv_count = 0;
     uint8_t rcode = 0;
-
-    delay(300); // TODO: fine-tune this
-    // dprintln(F("readResponse"));
-            
-    _usb.Task();
+    
+    unsigned long timeout = millis() + USB_READ_TIMEOUT;
     do {
+        _usb.Task();
         rcode = _midi.RecvData(&recv_read, (uint8_t *)(_readBuffer + recv_count));
-        if(rcode == 0) {
+        if(rcode == 0 && recv_read > 0) {
             recv_count += recv_read;
         }
-    } while(/*recv_count < MIDI_MAX_SYSEX_SIZE &&*/ rcode == 0);
+        if (millis() > timeout) {
+            dprintln(F("readResponse timeout"));
+            break;
+        }
+        // exit if we received a complete sysex (ends with 0xF7)
+        if (recv_count > 0 && _readBuffer[recv_count - 1] == 0xF7) {
+            break;
+        }
+    } while(rcode == 0);
     
-    // remove MIDI packet's 1st byte
-    for(int i = 0, j = 0; i < /* MIDI_MAX_SYSEX_SIZE */0xf7; i++) {
-        // TODO: stop at 0xf7 when sysex
-        _readBuffer[j++] = _readBuffer[++i];
-        _readBuffer[j++] = _readBuffer[++i];
-        _readBuffer[j++] = _readBuffer[++i];
-    }  
-
-    // debugReadBuffer(F("SYSEX READ: "), true);
+    // remove MIDI packet's 1st byte - FIX: only process recv_count bytes
+    for(uint16_t i = 0, j = 0; i < recv_count && i < MIDI_MAX_SYSEX_SIZE - 3; i += 4) {
+        if (i + 3 < recv_count) {
+            _readBuffer[j++] = _readBuffer[i + 1];
+            _readBuffer[j++] = _readBuffer[i + 2];
+            _readBuffer[j++] = _readBuffer[i + 3];
+        }
+    }
 }
 
 void ZoomMSDevice::enableEditorMode(bool aEnable) {
@@ -191,9 +153,44 @@ int8_t ZoomMSDevice::requestPatchIndex() {
 void ZoomMSDevice::requestDeviceID() {
     sendBytes(ID_PAK, F("REQ DEVICE ID\n"));
     readResponse();
-    _deviceID = _readBuffer[6];
-    dprint(F("Device ID: "));
-    dprintln(_deviceID);
+
+    uint8_t device_id = _readBuffer[6];
+    switch (device_id) {
+    case DEV_ID_MS_50G:
+        _patchLen = DEV_PLEN_MS_50G;
+        _deviceName = DEV_NAME_MS_50G;
+        break;
+    case DEV_ID_MS_70CDR:
+        _patchLen = DEV_PLEN_MS_70CDR;
+        _deviceName = DEV_NAME_MS_70CDR;
+        break;
+    case DEV_ID_MS_60B:
+        _patchLen = DEV_PLEN_MS_60B;
+        _deviceName = DEV_NAME_MS_60G;
+        break;
+    default:
+        break;
+    }
+    BP_PAK[3] = device_id;
+    EM_PAK[3] = device_id;
+    PI_PAK[3] = device_id;
+    PD_PAK[3] = device_id;
+    _firmwareVersion[0] = _readBuffer[10];
+    _firmwareVersion[1] = _readBuffer[11];
+    _firmwareVersion[2] = _readBuffer[12];
+    _firmwareVersion[3] = _readBuffer[13];
+    
+    dprint(F("DEVICE ID: "));
+    dprintln(device_id);
+
+    dprint(F("DEVICE NAME: "));
+    dprintln(_deviceName);
+
+    dprint(F("DEVICE FW: "));
+    dprintln(_firmwareVersion);
+
+    dprint(F("PATCH LEN: "));
+    dprintln(_patchLen);
 }
 
 void ZoomMSDevice::requestPatchData() {
@@ -217,12 +214,14 @@ void ZoomMSDevice::requestPatchData() {
     debug((uint8_t*) patch_name, 11, F("hex name"), false);
 }
 
+
 void ZoomMSDevice::sendPatch(uint8_t patch_index) {
     // send current patch number MIDI over USB
-    if (patch_index < ZOOM_MS_MAX_PATCHES) {
+    if (patch_index >= 0 && patch_index < ZOOM_MS_MAX_PATCHES) {
         PC_PAK[1] = patch_index;
         sendBytes(PC_PAK, F("Sending patch number: "));
-        dprintln(patch_index + 1);  
+        dprint("sending patch: ");
+        dprintln(patch_index);
     }
 }
 
@@ -285,4 +284,8 @@ void ZoomMSDevice::enableTuner(bool aEnable) {
     sendBytes(TU_PAK, aEnable ? F("Tuner ON") : F("Tuner OFF"));
 	tuner_enabled = aEnable;
     dprintln("");
+}
+
+void ZoomMSDevice::tick() {
+    _usb.Task();
 }

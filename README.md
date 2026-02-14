@@ -38,3 +38,9 @@ MIDI Pin 5 ────────── 4N28 Pin 2 (LED Cathode)
 
 - PC 0 to 49: will set the Zoom pedal to this patch number
 - Special PC values: see `eSpecialPC` enum in [main.cpp](src/main.cpp)
+
+## Test w/ zsh
+
+```zsh
+for i in {0..100}; do for i in {0..49}; do sendmidi dev "USB2.0-MIDI Port 1" ch 11 pc $i; sleep 0.1; done; done
+```
