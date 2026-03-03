@@ -5,3 +5,8 @@
 .vscode/ipch
 
 include/version.h
+
+kicad/**/#auto_saved_files#
+kicad/**/*.lck
+kicad/**/*.zip
+kicad/**/*backups

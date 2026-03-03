@@ -24,8 +24,8 @@ Pin 5: Current Return (MIDI data return)
 
 Connections:
 
-MIDI Pin 4 ──[220Ω]── 4N28 Pin 1 (LED Anode)
-MIDI Pin 5 ────────── 4N28 Pin 2 (LED Cathode)
+MIDI Pin 4 ──[220Ω]── 4N28 Pin 1 (LED Anode) ─────────── 1N4148 Cathode
+MIDI Pin 5 ────────── 4N28 Pin 2 (LED Cathode) ───────── 1N4148 Anode
                       4N28 Pin 3 N/C
 
                       4N28 Pin 4 (Emitter)  ──────────- Arduino GND
