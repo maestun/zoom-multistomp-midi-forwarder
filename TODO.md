@@ -1,2 +1,5 @@
-- [ ] add MIDI Thru
+- [ ] fix MIDI Thru
 - [ ] fix usb connection restored after loss
+- [ ] design MIDI/optocoupler input PCBs
+- [ ] add manual mode (2 footswitches)
+- [ ] add screen output
